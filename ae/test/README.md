@@ -14,8 +14,8 @@ Implement a **echo** server with TCP.
     tty2: ./cli    #cli的标准输入等待用户输入
 
 特殊字符串：
-* **bye**:cli 请求断开server
-* **rc** :cli 请求重连server。(**bug**: 若上一个连接没有断开就执行重连，依然重连成功)
+* **:bye**:cli 请求断开server
+* **:rc** :cli 请求重连server。仅当当前没有任何连接时才可重连，否则重连失败。
 
 ## show
 

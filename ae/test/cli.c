@@ -9,7 +9,7 @@
 #define MAX_BUF_SIZE (1024)
 #define MAX_EV_NUM (100)
 
-int sockfd;
+int sockfd = -1;
 struct aeEventLoop* cli_el;
 
 int init_sock();
@@ -18,6 +18,7 @@ void free_conn(int fd, int mask)
 {
     aeDeleteFileEvent(cli_el, fd, mask);
     close(fd);
+    sockfd = -1;
 }
 
 void read_sock(struct aeEventLoop *eventLoop, int fd, void *clientData, int mask)
@@ -51,12 +52,12 @@ void stdin_handle(struct aeEventLoop *eventLoop, int fd, void *clientData, int m
     }
 
     // "n-1" consider the final character "\n"
-    if (strncmp("bye", buf, n-1) == 0){
+    if (strncmp(":bye", buf, n-1) == 0){
         printf("Disconnect! \n");
         free_conn(sockfd, AE_READABLE);
         return;
     }
-    else if (strncmp("rc", buf, n-1) == 0){
+    else if (strncmp(":rc", buf, n-1) == 0){
         if (ANET_ERR == init_sock())
             printf("reconnect failed\n");
         else
@@ -70,6 +71,7 @@ void stdin_handle(struct aeEventLoop *eventLoop, int fd, void *clientData, int m
 
 int init_sock()
 {
+    if (-1 != sockfd) return ANET_ERR;
     sockfd = anetTcpNonBlockConnect(NULL, "127.0.0.1", 5730);
     if (sockfd == ANET_ERR){
         perror("connect");
