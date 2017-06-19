@@ -4,9 +4,12 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <strings.h>
+#include <sys/socket.h>
 
 #define MAX_EV_NUM (100)
 #define MAX_BUF_SIZE (1024)
+#define UNIX_SOCK_PATH "/opt/unixsock"
 
 struct {
     int sv_fd;
@@ -61,26 +64,61 @@ void accept_handle(struct aeEventLoop *eventLoop, int fd, void *clientData, int 
     printf("client[%d] join\n", conn_fd);
 }
 
-void init_server()
-{
-    server.el = aeCreateEventLoop(MAX_EV_NUM);
+void unix_accept_handle(struct aeEventLoop* el, int fd, void *clientData, int mask){
+    (void) el; (void)clientData; (void)mask;
 
-    server.port = 5730;
-    server.backlog = 100;
-    server.sv_fd = anetTcpServer(server.neterr, server.port, NULL, server.backlog); 
-    if (ANET_ERR == server.sv_fd) exit(1);
+    int conn_fd = anetUnixAccept(server.neterr, fd);
+    if (ANET_ERR == conn_fd) return;
 
-    anetNonBlock(NULL, server.sv_fd);
+    anetNonBlock(NULL, conn_fd);
 
-    if (ANET_ERR == aeCreateFileEvent(server.el, server.sv_fd, AE_READABLE, accept_handle, NULL)){
-        exit(0);
-    }
+    if (ANET_ERR == aeCreateFileEvent(server.el, conn_fd, AE_READABLE, read_client, NULL)) exit(0);
 
+    printf("client[%d] join\n", conn_fd);
 }
 
-int main()
+void init_server(int family)
 {
-    init_server();
+    server.el = aeCreateEventLoop(MAX_EV_NUM);
+    server.backlog = 100;
+
+    if (family == AF_INET){
+        server.port = 5730;
+        server.sv_fd = anetTcpServer(server.neterr, server.port, NULL, server.backlog); 
+        if (ANET_ERR == server.sv_fd) exit(1);
+
+        anetNonBlock(NULL, server.sv_fd);
+
+        if (ANET_ERR == aeCreateFileEvent(server.el, server.sv_fd, AE_READABLE, accept_handle, NULL)){
+            exit(0);
+        }
+    }else if (AF_LOCAL == family){
+        unlink(UNIX_SOCK_PATH);
+        server.sv_fd = anetUnixServer(server.neterr, UNIX_SOCK_PATH, 0777, server.backlog);
+        if (ANET_ERR == server.sv_fd) {
+            printf("Err: %s\n", server.neterr);
+            exit(0);
+        }
+
+        anetNonBlock(NULL, server.sv_fd);
+        if (ANET_ERR == aeCreateFileEvent(server.el, server.sv_fd, AE_READABLE, unix_accept_handle, NULL)) exit(0);
+        
+    }
+    else {
+        printf("unknow family[%d]\n", family);
+    }
+
+    return;
+}
+
+int main(int argc, char** argv)
+{
+    int family = AF_LOCAL;
+    if (argc == 2 && 0 == strcasecmp(argv[1], "inet")){
+        family = AF_INET;
+    }
+
+    init_server(family);
 
     aeMain(server.el);
 
