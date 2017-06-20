@@ -1,5 +1,6 @@
 #include "ae.h"
 #include "anet.h"
+#include "msg.h"
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -9,7 +10,7 @@
 
 #define MAX_EV_NUM (100)
 #define MAX_BUF_SIZE (1024)
-#define UNIX_SOCK_PATH "/opt/unixsock"
+#define UNIX_SOCK_PATH "/aeunixsock"
 
 struct {
     int sv_fd;
@@ -43,11 +44,14 @@ void read_client(struct aeEventLoop *eventLoop, int fd, void *clientData, int ma
         return;
     }
     
-    printf("recv:%s\n", buf);
+    msg_t* msg = (msg_t*) buf;
+    printf("whoami[%d], len[%d], data[%s]\n", msg->whoami, msg->len, msg->data);
+    /*
     if (n != write(fd, buf, n)){
         perror("echo failed");
         return;
     }
+    */
 }
 
 void accept_handle(struct aeEventLoop *eventLoop, int fd, void *clientData, int mask)

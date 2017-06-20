@@ -1,5 +1,6 @@
 #include "anet.h"
 #include "ae.h"
+#include "msg.h"
 #include <unistd.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -14,6 +15,7 @@
 int sockfd = -1;
 struct aeEventLoop* cli_el;
 int family = AF_LOCAL;
+int whoami = 2;
 
 int init_sock();
 
@@ -40,7 +42,7 @@ void read_sock(struct aeEventLoop *eventLoop, int fd, void *clientData, int mask
         return;
     }
 
-    write(fileno(stdout), buf, n);
+    write(STDOUT_FILENO, buf, n);
 }
 
 void stdin_handle(struct aeEventLoop *eventLoop, int fd, void *clientData, int mask)
@@ -66,8 +68,14 @@ void stdin_handle(struct aeEventLoop *eventLoop, int fd, void *clientData, int m
         else
             printf("OK!\n");
         return;
-    }else
-        write(sockfd, buf, n);
+    }else{
+        msg_t msg;
+        msg.whoami = whoami;
+        msg.len = n;
+        memcpy (msg.data, buf, n);
+        int total_len = sizeof (msg_t) + n;
+        write(sockfd, &msg, total_len);
+    }
 
     return;
 }
@@ -76,7 +84,7 @@ int init_sock()
 {
     if (-1 != sockfd) return ANET_ERR;
     if (AF_LOCAL == family){
-        sockfd = anetUnixConnect(NULL, "/opt/unixsock");
+        sockfd = anetUnixConnect(NULL, "/aeunixsock");
     }else if (AF_INET == family){
         sockfd = anetTcpNonBlockConnect(NULL, "127.0.0.1", 5730);
     }else{
@@ -97,7 +105,7 @@ void init_cli()
     cli_el = aeCreateEventLoop(MAX_EV_NUM);
     if (ANET_ERR == init_sock()) exit(0);
 
-    aeCreateFileEvent(cli_el, fileno(stdin), AE_READABLE, stdin_handle, NULL);
+    aeCreateFileEvent(cli_el, STDIN_FILENO, AE_READABLE, stdin_handle, NULL);
 }
 
 int main(int argc, char** argv)
